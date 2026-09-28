@@ -1,0 +1,4 @@
+agentkit-sdk-python==0.8.5
+veadk-python[extensions]
+google-adk
+

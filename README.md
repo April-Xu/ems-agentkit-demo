@@ -70,4 +70,3 @@ The MCP API key in the local example authenticates the Agent to an MCP service; 
 The complementary scheduled audit is read-only. Its first run can be invoked manually; a customer scheduler or Feishu Workflow must be configured before describing it as recurring automation.
 
 The two Agent templates were generated with AgentKit SDK 0.8.5. Review the current AgentKit and Feishu tenant configuration before deploying. This repository has not been deployed or exercised against customer or cloud endpoints.
-

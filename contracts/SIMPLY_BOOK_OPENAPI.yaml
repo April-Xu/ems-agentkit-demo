@@ -1,0 +1,982 @@
+openapi: 3.0.3
+info:
+  title: simply_book API
+  version: 1.0.0
+  description: |
+    simply_book 模块对外接口契约，基于 `docs/SIMPLY_BOOK_SCHEMA.md` 的实体与运维场景派生。
+    - 创建链：地点 → 导师 → 分类 → 课程 → 排期（排期聚合前四者软 FK）。
+    - 预定产 EN/ZH 双行（`lang_related_id` 互指）；credits 流水只在 EN 行记账。
+    - Credits 双表 ledger：`partner_event_ticket_relation`（余额行，FOR UPDATE 锁对象）+ `partner_event_credits_transaction`（每笔带 `transaction_balance` 快照）。
+    - 响应信封：成功 `{"status":0,"data":...,"msg":"success","_t":...}`；失败 `{"status":1,"data":null,"msg":"..."}`。
+    - 鉴权：JWT 放 `Token` 头；每个请求带 `Appid`/`Lang`/`Platform` 头。
+    - `x-internal-route` 标注真实 controller::action，便于路由对齐；为空表示契约先行、待补路由。
+
+tags:
+  - name: 地点
+  - name: 导师
+  - name: 分类
+  - name: 课程
+  - name: 排期
+  - name: 收藏
+  - name: 候补
+  - name: 预定
+  - name: Credits
+  - name: 运维
+
+paths:
+  /locations:
+    get:
+      tags: [地点]
+      summary: 地点列表
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - $ref: '#/components/parameters/Platform'
+        - name: location
+          in: query
+          schema: { type: string }
+          description: 名称模糊
+        - name: tagId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 地点列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Location' }
+      x-internal-route: OrganizerController::actionPlaceList
+  /locations/{locationId}:
+    get:
+      tags: [地点]
+      summary: 地点详情
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: locationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 地点详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data: { $ref: '#/components/schemas/Location' }
+      x-internal-route: OrganizerController::actionPlaceInfo
+  /locations/{locationId}/timetable:
+    get:
+      tags: [地点]
+      summary: 某地点的排期时间表（now→+1y）
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: locationId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 排期时间表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          timetableList:
+                            type: array
+                            items: { $ref: '#/components/schemas/WorkCalendar' }
+      x-internal-route: FeishuController::actionLocationTimetableList
+
+  /practitioners:
+    get:
+      tags: [导师]
+      summary: 导师列表
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: keywords
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 导师列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Practitioner' }
+      x-internal-route: OrganizerController::actionPractitionerList
+  /practitioners/{practitionerId}:
+    get:
+      tags: [导师]
+      summary: 导师详情
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: practitionerId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 导师详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data: { $ref: '#/components/schemas/Practitioner' }
+      x-internal-route: OrganizerController::actionPractitionerInfo
+
+  /categories:
+    get:
+      tags: [分类]
+      summary: 分类列表
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+      responses:
+        '200':
+          description: 分类列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Category' }
+      x-internal-route: null  # 仅作为排期过滤维度被内部消费，契约先行
+
+  /classes:
+    get:
+      tags: [课程]
+      summary: 课程列表
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: cateId
+          in: query
+          schema: { type: integer }
+          description: 分类业务 id（= work_calendar.class_cate_id）
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 课程列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          list:
+                            type: array
+                            items: { $ref: '#/components/schemas/Class' }
+                          total: { type: integer }
+      x-internal-route: null  # 现内嵌于排期响应，独立列表契约先行
+  /classes/{classId}:
+    get:
+      tags: [课程]
+      summary: 课程详情
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: classId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 课程详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data: { $ref: '#/components/schemas/Class' }
+      x-internal-route: null
+
+  /calendars:
+    get:
+      tags: [排期]
+      summary: 排期列表（主查询，支持多维度过滤）
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+          description: 排期日期；不带则范围查
+        - name: category
+          in: query
+          schema: { type: integer }
+          description: = cate_id（class_cate_id）
+        - name: classId
+          in: query
+          schema: { type: integer }
+        - name: venueId
+          in: query
+          schema: { type: integer }
+          description: = location_id
+        - name: practitionerId
+          in: query
+          schema: { type: string }
+          description: FIND_IN_SET 匹配 practitioner_id 与 host_ids
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 排期列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          list:
+                            type: array
+                            items: { $ref: '#/components/schemas/WorkCalendar' }
+                          total: { type: integer }
+      x-internal-route: SanghaController::actionLhcScheduleV2
+  /calendars/{calendarId}:
+    get:
+      tags: [排期]
+      summary: 排期详情
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: calendarId
+          in: path
+          required: true
+          schema: { type: integer }
+        - name: courseId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 排期详情（含评论、当前语言切片）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          info: { $ref: '#/components/schemas/WorkCalendar' }
+                          commentList:
+                            type: array
+                            items: { type: object }
+      x-internal-route: SanghaController::actionScheduleInfo
+  /calendars/active-dates:
+    get:
+      tags: [排期]
+      summary: 某月有排期的日期列表
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: year
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: month
+          in: query
+          required: true
+          schema: { type: integer }
+        - name: category
+          in: query
+          schema: { type: integer }
+        - name: classId
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 活跃日期
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: array
+                        items: { type: string, format: date }
+      x-internal-route: SanghaController::actionLhcActiveDateList
+  /calendars/search:
+    get:
+      tags: [排期]
+      summary: 按关键词搜索排期
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: keywords
+          in: query
+          required: true
+          schema: { type: string }
+        - name: category
+          in: query
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 搜索结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/WorkCalendar' }
+      x-internal-route: SanghaController::actionScheduleKeywords
+
+  /calendars/{calendarId}/favorite:
+    post:
+      tags: [收藏]
+      summary: 收藏切换（toggle）
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: calendarId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 切换结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          isFavorited: { type: boolean }
+      x-internal-route: SanghaController::actionCalendarFavorite
+  /calendars/favorites:
+    get:
+      tags: [收藏]
+      summary: 我的收藏列表
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 收藏列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          list:
+                            type: array
+                            items: { $ref: '#/components/schemas/WorkCalendar' }
+                          total: { type: integer }
+      x-internal-route: SanghaController::actionCalendarFavoriteList
+
+  /calendars/{calendarId}/waiting-list:
+    post:
+      tags: [候补]
+      summary: 加入候补
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: calendarId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eventId: { type: string }
+                courseId: { type: string }
+      responses:
+        '200':
+          description: 加入结果（含排队号、排期信息）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          num: { type: integer }
+                          info: { $ref: '#/components/schemas/WorkCalendar' }
+      x-internal-route: ConferenceController::actionAddWaitingList
+    delete:
+      tags: [候补]
+      summary: 退出候补
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: calendarId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 退出结果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Success' }
+      x-internal-route: ConferenceController::actionDeleteWaitingList
+
+  /calendars/{calendarId}/bookings:
+    get:
+      tags: [预定]
+      summary: 场景 C — 查询某排期下预定人数/列表
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: calendarId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 预定列表（仅当前 lang 行挂 userInfo）；人数 = count(bookingList)
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          bookingList:
+                            type: array
+                            items: { $ref: '#/components/schemas/Booking' }
+                          count: { type: integer }
+      x-internal-route: SanghaController::actionBookingCalendar
+    post:
+      tags: [预定]
+      summary: 场景 A — 批量预定（扣库存 + 逐笔扣 credits）
+      description: |
+        事务内锁定排期行 → 校验库存 ≥ N → 原子扣 `booking_left` → 产 N 对 EN/ZH 预定行 → 逐笔在 EN 行记 redeem 流水。
+        credits 型课程先校验总额（class_credits × N）。
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: calendarId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [count]
+              properties:
+                count: { type: integer, minimum: 1, description: 预定数 N }
+                bookingId: { type: string }
+                courseId: { type: string }
+                eventId: { type: string }
+      responses:
+        '200':
+          description: 预定结果（返回 N 对 EN/ZH id）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          ids:
+                            type: array
+                            items:
+                              type: array
+                              items: { type: integer }
+                              description: '[enId, zhId]'
+      x-internal-route: SanghaController::actionMultiMakeBooking
+
+  /bookings/{bookingId}/cancel:
+    post:
+      tags: [预定]
+      summary: 场景 B — 批量取消（释库存 + 逐笔退 credits）
+      description: |
+        EN+ZH 配对，释放数 = 总行数 / 2；释放 `booking_left`、标记 `booking_canceled=1`；
+        仅 EN 行逐笔走取消退还（防重复 + adjust-aware）。
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: bookingId
+          in: path
+          required: true
+          schema: { type: string }
+          description: 预定订单 id / calendar 维度
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                courseId: { type: string }
+                eventId: { type: string }
+      responses:
+        '200':
+          description: 取消结果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Success' }
+      x-internal-route: SanghaController::actionMultiCancelBooking
+  /bookings/me:
+    get:
+      tags: [预定]
+      summary: 我的预定列表
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 我的预定
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          list:
+                            type: array
+                            items: { $ref: '#/components/schemas/Booking' }
+                          total: { type: integer }
+      x-internal-route: SanghaController::actionClientBookingOrderList
+
+  /credits/balance:
+    get:
+      tags: [Credits]
+      summary: Credits 余额（partner_event_ticket_relation）
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: eventId
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: 余额
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data: { $ref: '#/components/schemas/CreditsBalance' }
+      x-internal-route: ConferenceController::actionTicketInfo
+  /credits/transactions:
+    get:
+      tags: [Credits]
+      summary: Credits 流水（partner_event_credits_transaction）
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: eventId
+          in: query
+          schema: { type: string }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: pageSize
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: 流水列表
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          list:
+                            type: array
+                            items: { $ref: '#/components/schemas/CreditsTransaction' }
+                          total: { type: integer }
+      x-internal-route: ConferenceController::actionCreditsTransactionList
+  /credits/recharge:
+    post:
+      tags: [Credits, 运维]
+      summary: 场景 D — 批量增加 credits（staff 充值）
+      description: 逐个 (ato_id, event_id) 调充值流水；每笔独立事务 + FOR UPDATE + 余额快照；无余额行自动创建。
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [atoId, eventId, amount]
+              properties:
+                atoId: { type: string }
+                eventId: { type: string }
+                amount: { type: integer, description: 正=增 }
+                remark: { type: string }
+                operator: { type: string }
+      responses:
+        '200':
+          description: 充值结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          atoId: { type: string }
+                          eventId: { type: string }
+                          amount: { type: integer }
+                          balance: { type: integer }
+      x-internal-route: FeishuController::actionAddCredits
+  /credits/refund:
+    post:
+      tags: [Credits, 运维]
+      summary: 场景 F — 批量退 credits（绑预定 id 安全退还）
+      description: |
+        取排期下所有 EN 预定行逐条走取消退还：ZH 经 lang_related_id 归一 EN；已有 cancel 流水跳过（防重复）；
+        汇总此前 adjust 已退，`退还额 = |redeem| − 已adjust退还`，≤0 跳过。无专用 HTTP 路由，契约先行。
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [calendarId, eventId]
+              properties:
+                calendarId: { type: integer }
+                eventId: { type: string }
+                sendName: { type: string }
+      responses:
+        '200':
+          description: 批退结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          refunded: { type: integer, description: 实退笔数 }
+                          skipped: { type: integer, description: 已退/≤0 跳过笔数 }
+      x-internal-route: null  # 现仅 BookingService::refundCreditsOnCancel 内部调用，无 HTTP 路由
+
+  /calendars/{calendarId}/stock:
+    post:
+      tags: [排期, 运维]
+      summary: 场景 E — 批量增加某排期库存
+      description: |
+        对 `simply_book_work_calendar.booking_left` 原子加 N；只动 `booking_left`，不动 `booking_limit`（per-user 额度）。
+        对称扣库存带 `WHERE booking_left >= N` 条件，不足不执行。
+      parameters:
+        - $ref: '#/components/parameters/Token'
+        - $ref: '#/components/parameters/Appid'
+        - $ref: '#/components/parameters/Lang'
+        - name: calendarId
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [count]
+              properties:
+                count: { type: integer, minimum: 1, description: 加座数 N }
+      responses:
+        '200':
+          description: 加库存结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Success'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          calendarId: { type: integer }
+                          bookingLeft: { type: integer, description: 加后剩余库存 }
+      x-internal-route: null  # 现仅 SimplyBookWorkCalendar::releaseBookingLeftById 模型层
+
+components:
+  parameters:
+    Token:
+      name: Token
+      in: header
+      required: true
+      schema: { type: string }
+      description: JWT，解码得 ATO_ID
+    Appid:
+      name: Appid
+      in: header
+      required: true
+      schema: { type: string }
+      description: 应用标识（feishu / admin / impact_week 等）
+    Lang:
+      name: Lang
+      in: header
+      required: false
+      schema: { type: string, enum: [en, zh], default: zh }
+    Platform:
+      name: Platform
+      in: header
+      required: false
+      schema: { type: string }
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Token
+  schemas:
+    Success:
+      type: object
+      properties:
+        status: { type: integer, description: 0=成功 }
+        msg: { type: string, example: success }
+        data: { description: 业务数据，失败为 null }
+        _t: { type: integer, description: 时间戳 }
+    Error:
+      type: object
+      properties:
+        status: { type: integer, description: 1=失败 }
+        msg: { type: string }
+        data: { type: string, nullable: true, example: null }
+    Location:
+      type: object
+      properties:
+        id: { type: integer }
+        locationName: { type: string }
+        venueCity: { type: string }
+        venueFullName: { type: string }
+        introduction: { type: string }
+        venueImage: { type: string }
+    Practitioner:
+      type: object
+      properties:
+        practitionerId: { type: string }
+        practitionerName: { type: string }
+        practitionerTitle: { type: string }
+        practitionerOrg: { type: string }
+        headImgs: { type: string, description: 头像 json }
+        avatarBadge: { type: string }
+        nationality: { type: string }
+        workExp: { type: string }
+        sex: { type: string }
+        introSelf: { type: string }
+        introDesc: { type: string }
+        languages: { type: string }
+        lang: { type: string, description: 本条记录语言 }
+    Category:
+      type: object
+      properties:
+        cateId: { type: integer }
+        cateName: { type: string }
+        cateShowName: { type: string }
+        cateIcon: { type: string }
+        cateColor: { type: string }
+        cateIsPublic: { type: integer }
+    Class:
+      type: object
+      properties:
+        id: { type: integer, description: class_id }
+        name: { type: string }
+        description: { type: string }
+        descriptionShort: { type: string }
+        picturePath: { type: string }
+        bookingsLimit: { type: integer }
+        isPublish: { type: integer }
+        finishPoints: { type: integer }
+        isOnline: { type: integer }
+        deliveryMode: { type: string, enum: [private, group, workshop, hybrid] }
+        multiBooking: { type: integer }
+        classPrice: { type: integer }
+        classCredits: { type: integer, description: null=不走 credits }
+        currencyType: { type: string }
+        venueId: { type: integer }
+        categoryId: { type: integer }
+    WorkCalendar:
+      type: object
+      properties:
+        calendarId: { type: integer }
+        classId: { type: integer }
+        date: { type: string }
+        fromTime: { type: string }
+        toTime: { type: string }
+        calendarSort: { type: integer }
+        isDayOff: { type: string }
+        location: { type: string }
+        locationId: { type: integer }
+        bookingLeft: { type: integer, description: 剩余可订库存（原子 ±） }
+        bookingLimit: { type: integer, description: per-user 预订额度 }
+        finishPoints: { type: integer }
+        classCateId: { type: integer, description: 即 cate_id → simply_book_category.cate_id }
+        practitionerId:
+          type: array
+          items: { type: string }
+          description: 逗号分隔拆分；FIND_IN_SET
+        hostIds:
+          type: array
+          items: { type: string }
+        sponsorIds:
+          type: array
+          items: { type: string }
+        outlookId: { type: string }
+        remark: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+          description: 来自 work_calendar_tag_relation
+        isFavorited: { type: boolean }
+        class: { $ref: '#/components/schemas/Class', description: 联表课程信息 }
+    Booking:
+      type: object
+      properties:
+        id: { type: integer }
+        bookingId: { type: integer, description: 订单 id }
+        courseId: { type: string }
+        eventId: { type: string }
+        bookingDay: { type: string, format: date }
+        atoId: { type: string }
+        bookingBeginDatetime: { type: string, format: date-time }
+        bookingEndDatetime: { type: string, format: date-time }
+        bookingEventName: { type: string }
+        bookingClassId: { type: string }
+        bookingCalendarId: { type: integer }
+        bookingPractitionerId: { type: string }
+        bookingLocationId: { type: string }
+        bookingCanceled: { type: integer }
+        bookingSource: { type: string }
+        lang: { type: string, enum: [en, zh] }
+        langRelatedId: { type: integer, description: EN/ZH 互指 }
+        userInfo: { type: object, description: 水化用户信息，仅当前 lang 行挂 }
+    CreditsBalance:
+      type: object
+      properties:
+        eventId: { type: string }
+        atoId: { type: string }
+        ticketCreditsBalance: { type: integer, description: 消费点余额 }
+    CreditsTransaction:
+      type: object
+      properties:
+        id: { type: integer }
+        atoId: { type: string }
+        eventId: { type: string }
+        transactionBookingId: { type: integer, description: EN 行预定 id }
+        transactionName: { type: string }
+        transactionType:
+          type: string
+          enum: [SIGN_IN, REDEEM, CANCEL, RECHARGE, ADJUST, BUY_ORDER, BACKEND_DEDUCT]
+        transactionAmount: { type: integer, description: 正=增，负=减 }
+        transactionBalance: { type: integer, description: 操作后余额快照 }
+        transactionRelationId: { type: integer }
+        transactionOperator: { type: string }
+        transactionRemark: { type: string }
+        createdTime: { type: string, format: date-time }

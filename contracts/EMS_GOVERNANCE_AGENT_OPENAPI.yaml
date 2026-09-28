@@ -1,0 +1,306 @@
+openapi: 3.0.3
+info:
+  title: EMS Agent Governance API
+  version: 0.1.0-demo
+  description: >
+    Proposed demo-only contract for temporary Grants and preview/freeze/approval
+    of EMS Change Sets. The verified subject is derived from the bearer token;
+    clients must not set the subject in the request body. This API has no execute
+    operation. Do not treat it as a customer production contract.
+servers:
+  - url: https://ems-governance.example.invalid/api
+security:
+  - employeeOAuth: [ems.change.prepare]
+tags:
+  - name: Grants
+  - name: Change Sets
+paths:
+  /grants:
+    post:
+      tags: [Grants]
+      operationId: requestTemporaryGrant
+      summary: Request a scoped temporary Grant
+      description: >
+        Creates a pending request for a separate Feishu Grant approval. Subject
+        is read from the verified OAuth token. Approval does not authorize a
+        business write by the Agent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrantRequest'
+      responses:
+        '202':
+          description: Grant request submitted for approval
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Grant'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [Grants]
+      operationId: listMyGrants
+      summary: List Grants available to the authenticated operator
+      parameters:
+        - name: eventId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string, enum: [PENDING_APPROVAL, ACTIVE, EXPIRED, REVOKED, REJECTED] }
+      responses:
+        '200':
+          description: Grants associated with the verified subject
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Grant' }
+  /grants/{grantId}:
+    get:
+      tags: [Grants]
+      operationId: getGrant
+      summary: Get Grant status and scope
+      parameters:
+        - $ref: '#/components/parameters/GrantId'
+      responses:
+        '200':
+          description: Grant status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Grant' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /change-sets:
+    post:
+      tags: [Change Sets]
+      operationId: prepareChangeSet
+      summary: Prepare a Change Set preview
+      description: >
+        Validates source version, Grant scope, event boundary, policy, and row
+        limits. Stores a normalized preview but performs no business writes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangeSetRequest'
+      responses:
+        '201':
+          description: Preview prepared
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChangeSet' }
+        '409':
+          description: Source version or capacity changed during preparation
+        '422':
+          description: Grant or policy does not allow the requested proposal
+  /change-sets/{changeSetId}:
+    get:
+      tags: [Change Sets]
+      operationId: getChangeSet
+      summary: Read preview, state, and audit references
+      parameters:
+        - $ref: '#/components/parameters/ChangeSetId'
+      responses:
+        '200':
+          description: Change Set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChangeSet' }
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /change-sets/{changeSetId}/freeze:
+    post:
+      tags: [Change Sets]
+      operationId: freezeChangeSet
+      summary: Freeze the exact preview version
+      description: >
+        Freezes the current preview. Any edit creates a new version/hash and
+        requires a new approval. Freezing does not execute the proposed changes.
+      parameters:
+        - $ref: '#/components/parameters/ChangeSetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion, expectedHash]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+                expectedHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: Frozen Change Set
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChangeSet' }
+        '409':
+          description: Version or hash no longer matches the preview
+  /change-sets/{changeSetId}/submit-approval:
+    post:
+      tags: [Change Sets]
+      operationId: submitChangeSetApproval
+      summary: Submit a frozen Change Set to Feishu approval
+      description: >
+        Creates a Feishu approval instance bound to the Change Set ID, version,
+        and hash. The Agent cannot mark the approval approved.
+      parameters:
+        - $ref: '#/components/parameters/ChangeSetId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion, expectedHash]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+                expectedHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+                comment: { type: string, maxLength: 1000 }
+      responses:
+        '202':
+          description: Approval instance created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [changeSetId, approvalInstanceId, status]
+                properties:
+                  changeSetId: { type: string }
+                  approvalInstanceId: { type: string }
+                  status: { type: string, enum: [PENDING] }
+                  approvalUrl: { type: string, format: uri }
+        '409':
+          description: Change Set is not frozen or approval already exists
+        '422':
+          description: Grant expired, revoked, or not scoped to this Change Set
+
+components:
+  securitySchemes:
+    employeeOAuth:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://identity.example.invalid/oauth/authorize
+          tokenUrl: https://identity.example.invalid/oauth/token
+          scopes:
+            ems.change.prepare: Request Grants and prepare/submit Change Sets
+  parameters:
+    GrantId:
+      name: grantId
+      in: path
+      required: true
+      schema: { type: string }
+    ChangeSetId:
+      name: changeSetId
+      in: path
+      required: true
+      schema: { type: string }
+  schemas:
+    GrantRequest:
+      type: object
+      required: [eventId, requestedActions, maxRecords, ttlSeconds, reason]
+      properties:
+        eventId: { type: string }
+        requestedActions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum: [event.read, schedule.read, enrollment.read, enrollment.prepare, changeset.freeze, changeset.submit_approval]
+        maxRecords: { type: integer, minimum: 1, maximum: 3 }
+        ttlSeconds: { type: integer, minimum: 60, maximum: 900 }
+        batchId: { type: string }
+        reason: { type: string, minLength: 10, maxLength: 1000 }
+    Grant:
+      type: object
+      required: [grantId, subject, eventId, actions, maxRecords, status, expiresAt]
+      properties:
+        grantId: { type: string }
+        subject: { type: string, description: Derived from verified token claims }
+        eventId: { type: string }
+        actions:
+          type: array
+          items: { type: string }
+        maxRecords: { type: integer }
+        batchId: { type: string }
+        status: { type: string, enum: [PENDING_APPROVAL, ACTIVE, EXPIRED, REVOKED, REJECTED] }
+        approvalInstanceId: { type: string }
+        approvedBy: { type: string }
+        issuedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    ChangeSetRequest:
+      type: object
+      required: [grantId, eventId, batchId, sourceVersions, operations]
+      properties:
+        grantId: { type: string }
+        eventId: { type: string }
+        batchId: { type: string }
+        sourceVersions:
+          type: object
+          additionalProperties: { type: string }
+        operations:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items: { $ref: '#/components/schemas/ProposedOperation' }
+        findings:
+          type: array
+          items: { $ref: '#/components/schemas/FindingReference' }
+        downstreamProjection:
+          type: object
+          description: Intended Impact Key projection; not a live API contract.
+    ProposedOperation:
+      type: object
+      required: [operation, participantId, targetSessionId]
+      properties:
+        operation: { type: string, enum: [enroll, remove, move, update] }
+        participantId: { type: string }
+        targetSessionId: { type: string }
+        currentSessionId: { type: string }
+        reason: { type: string }
+    FindingReference:
+      type: object
+      required: [recordId, rule, disposition]
+      properties:
+        recordId: { type: string }
+        rule: { type: string, enum: [duplicate_email, already_enrolled, schedule_conflict, no_consent, capacity] }
+        disposition: { type: string, enum: [included, skipped, held, requires_confirmation] }
+        evidence: { type: string }
+    ChangeSet:
+      type: object
+      required: [changeSetId, eventId, batchId, version, status, previewHash, policyVersion, expiresAt]
+      properties:
+        changeSetId: { type: string }
+        eventId: { type: string }
+        batchId: { type: string }
+        version: { type: integer }
+        status: { type: string, enum: [PREPARED, FROZEN, PENDING_APPROVAL, APPROVED, REJECTED, EXPIRED, EXECUTING, COMPLETED, FAILED, STALE] }
+        previewHash: { type: string }
+        policyVersion: { type: string }
+        sourceVersions:
+          type: object
+          additionalProperties: { type: string }
+        includedCount: { type: integer }
+        excludedCount: { type: integer }
+        heldCount: { type: integer }
+        approvalInstanceId: { type: string }
+        expiresAt: { type: string, format: date-time }
+        preview:
+          type: object
+          additionalProperties: true
+  responses:
+    Unauthorized:
+      description: Missing or invalid authenticated employee token
+    Forbidden:
+      description: Authenticated employee is not allowed to request this operation
+    NotFound:
+      description: Resource not found or not visible to the authenticated subject
+

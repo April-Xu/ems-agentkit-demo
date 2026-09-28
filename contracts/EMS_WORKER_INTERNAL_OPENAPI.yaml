@@ -1,0 +1,123 @@
+openapi: 3.0.3
+info:
+  title: EMS Worker Internal API
+  version: 0.1.0-demo
+  description: >
+    Private Worker-only operations. Do not publish this contract as Agent-facing
+    MCP tools. The demo-only Impact Key adapter is a placeholder, not a claim
+    about the customer's production API.
+servers:
+  - url: https://ems-worker.example.invalid/internal
+security:
+  - workerOAuth: [ems.worker.execute]
+paths:
+  /change-sets/{changeSetId}/execute:
+    post:
+      operationId: executeApprovedChangeSet
+      summary: Execute an approved frozen Change Set
+      description: >
+        Worker-only. Re-check active Grant, approval callback status, exact
+        payload hash, policy version, source freshness, expiry, and idempotency
+        before calling the private SimplyBook MCP service.
+      parameters:
+        - name: changeSetId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion, expectedHash]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+                expectedHash: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '202':
+          description: Execution job queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jobId, changeSetId, status]
+                properties:
+                  jobId: { type: string }
+                  changeSetId: { type: string }
+                  status: { type: string, enum: [QUEUED] }
+        '409':
+          description: Grant, approval, source version, or hash is stale
+        '403':
+          description: Worker identity lacks permission
+  /jobs/{jobId}:
+    get:
+      operationId: getWorkerJob
+      summary: Get execution job status
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Job and backend status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [jobId, status]
+                properties:
+                  jobId: { type: string }
+                  changeSetId: { type: string }
+                  status: { type: string, enum: [QUEUED, RUNNING, COMPLETED, PARTIAL, FAILED] }
+                  simplyBookResult: { type: object, additionalProperties: true }
+                  impactKeySync:
+                    type: object
+                    properties:
+                      status: { type: string, enum: [NOT_STARTED, PENDING, COMPLETED, RETRYABLE_FAILURE, FAILED] }
+                      externalReference: { type: string }
+                      message: { type: string }
+  /demo-adapters/impact-key/sync:
+    post:
+      operationId: demoImpactKeyProjection
+      summary: Demo-only Impact Key projection placeholder
+      description: >
+        Stub for the customer-facing projection. Replace with the customer
+        Impact Key API contract before claiming live synchronization.
+      x-demo-only: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [eventId, jobId, status, items]
+              properties:
+                eventId: { type: string }
+                jobId: { type: string }
+                status: { type: string, enum: [completed, partial, failed] }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      participantId: { type: string }
+                      sessionId: { type: string }
+                      bookingId: { type: string }
+      responses:
+        '202':
+          description: Demo projection accepted
+components:
+  securitySchemes:
+    workerOAuth:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: https://identity.example.invalid/oauth/token
+          scopes:
+            ems.worker.execute: Execute a previously approved Change Set
