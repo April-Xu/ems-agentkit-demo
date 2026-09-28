@@ -1,52 +1,18 @@
-# EMS governance and execution boundary
+# EMS demo MCP and governance backend
 
-This directory is reserved for the policy service and Worker adapters. The
-contracts are in contracts/EMS_GOVERNANCE_AGENT_OPENAPI.yaml and
-contracts/EMS_WORKER_INTERNAL_OPENAPI.yaml.
+This container exposes a Streamable HTTP MCP endpoint at `/mcp`, a health probe
+at `/health`, and reviewer/worker-only demo HTTP routes. It loads the synthetic
+Base export in `data/feishu/` and defaults to mock SimplyBook behavior.
 
-## Agent-facing service
+The Agent-facing MCP tool list contains reads, temporary Grant requests, and
+Change Set preview/freeze/approval submission. It has no booking, cancellation,
+email, or Impact Key write tool. Grant reviewer, Change Set reviewer, and
+Worker routes use separate bearer secrets and are not MCP tools. Worker execution always returns
+`MOCK_ONLY_NOT_SENT`; it never writes to SimplyBook or Impact Key.
 
-The governance API derives the employee subject from a verified identity token
-or trusted identity broker. It must not accept a subject ID supplied in the
-request body. It supports:
+The SQLite state file is local to one process. Use one replica for this demo.
+Restarting the container resets active demo state if the file is ephemeral.
+Do not use this service as a production governance system.
 
-- Temporary Grant requests, with an independent Feishu approval.
-- Grant lookup scoped to the authenticated employee.
-- Change Set preparation with source versions, finding references, and impact.
-- Freeze of the exact preview version and content hash.
-- Submission of the frozen Change Set to a separate Feishu approval.
-
-The Agent-facing service has no execute endpoint.
-
-## Private Worker
-
-The Worker consumes approved Change Sets from a queue. Before calling any
-backend, it checks:
-
-1. The approval callback is final and belongs to the same Change Set ID,
-   version, and hash.
-2. The Grant is active, belongs to the same employee and event, covers each
-   proposed operation, has not expired or been revoked, and remains within
-   its row/batch limit.
-3. Source versions, capacity, and policy version still match the frozen
-   preview.
-4. The idempotency key has not already been applied.
-
-The Worker stores an append-only audit record and reports SimplyBook execution
-and Impact Key projection separately. If one stage fails, expose partial
-status and safe retry behavior rather than claiming success.
-
-## Integrations to fill in after customer confirmation
-
-- Feishu approval definition, approval instance creation, callback signature
-  verification, and reviewer mapping.
-- SimplyBook enrollment API that binds a named participant to a booking.
-- Impact Key production API, stable identifiers, and reconciliation behavior.
-- Email provider/API only if bulk email is in scope for a later demo.
-- Durable Change Set store, queue, audit store, and retry/dead-letter policy.
-- Customer-approved identity provider, Grant roles, policy rules, and data
-  retention.
-
-The demo-only Impact Key route must never be presented as the actual customer
-endpoint. No implementation in this directory currently sends live writes.
-
+For local startup, deployment and manual endpoint examples, see
+[`docs/DEPLOYMENT.md`](../../docs/DEPLOYMENT.md).

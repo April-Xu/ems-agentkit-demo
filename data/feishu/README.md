@@ -23,11 +23,11 @@ The Base token and user access credentials are intentionally not stored here.
 
 - CAL-DEMO-101 has three remaining seats.
 - P-DEMO-002 is already enrolled in CAL-DEMO-101 and should be skipped.
-- P-DEMO-003 and P-DEMO-007 share participant03@example.com; the canonical
-  person must be confirmed before preparing an enrollment for P-DEMO-003.
-- P-DEMO-005 has an overlapping booking in CAL-DEMO-102; CAL-DEMO-103 is an
+- P-DEMO-003 (`email1`) and P-DEMO-007 (`email2`) share
+  participant03@example.com; the canonical person must be confirmed before
+  preparing an enrollment.
+- P-DEMO-005 has an overlapping booking in CAL-DEMO-102-overlap; CAL-DEMO-103 is an
   alternate session but any move requires explicit review.
-- P-DEMO-006 lacks confirmed consent and should be held.
-- The scripted Change Set includes P-DEMO-001, P-DEMO-003, and P-DEMO-004
-  only after the operator confirms P-DEMO-003 is the canonical record.
-
+- P-DEMO-006 (`not-confirmed`) lacks confirmed consent and should be held.
+- The safe scripted Change Set includes P-DEMO-001 and P-DEMO-004. Resolve
+  the duplicate-email identity before preparing any Change Set for P-DEMO-003.

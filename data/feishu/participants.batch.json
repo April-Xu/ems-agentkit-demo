@@ -2,10 +2,10 @@
   "create_records": [
     {"人员编号":"P-DEMO-001","姓名":"Demo Participant 01","邮箱":"participant01@example.com","ATO ID":"ATO-DEMO-001","语言":["en"],"报名同意":true,"数据状态":["已确认"]},
     {"人员编号":"P-DEMO-002","姓名":"Demo Participant 02","邮箱":"participant02@example.com","ATO ID":"ATO-DEMO-002","语言":["zh"],"报名同意":true,"数据状态":["已确认"]},
-    {"人员编号":"P-DEMO-003","姓名":"Demo Participant 03","邮箱":"participant03@example.com","ATO ID":"ATO-DEMO-003","语言":["en"],"报名同意":true,"数据状态":["已确认"]},
+    {"人员编号":"P-DEMO-003","姓名":"email1","邮箱":"participant03@example.com","ATO ID":"ATO-DEMO-003","语言":["en"],"报名同意":true,"数据状态":["已确认"]},
     {"人员编号":"P-DEMO-004","姓名":"Demo Participant 04","邮箱":"participant04@example.com","ATO ID":"ATO-DEMO-004","语言":["zh"],"报名同意":true,"数据状态":["已确认"]},
     {"人员编号":"P-DEMO-005","姓名":"Demo Participant 05","邮箱":"participant05@example.com","ATO ID":"ATO-DEMO-005","语言":["en"],"报名同意":true,"数据状态":["已确认"]},
-    {"人员编号":"P-DEMO-006","姓名":"Demo Participant 06","邮箱":"participant06@example.com","ATO ID":"ATO-DEMO-006","语言":["en"],"报名同意":false,"数据状态":["待人工确认"]},
-    {"人员编号":"P-DEMO-007","姓名":"Demo Participant 07","邮箱":"participant03@example.com","ATO ID":"ATO-DEMO-007","语言":["en"],"报名同意":false,"数据状态":["重复候选"]}
+    {"人员编号":"P-DEMO-006","姓名":"not-confirmed","邮箱":"participant06@example.com","ATO ID":"ATO-DEMO-006","语言":["en"],"报名同意":false,"数据状态":["待人工确认"]},
+    {"人员编号":"P-DEMO-007","姓名":"email2","邮箱":"participant03@example.com","ATO ID":"ATO-DEMO-007","语言":["en"],"报名同意":false,"数据状态":["重复候选"]}
   ]
 }

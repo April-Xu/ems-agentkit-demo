@@ -1,5 +1,17 @@
 # Architecture and security boundaries
 
+## What is deployed by this repository
+
+The architecture below describes the intended customer flow. The repository's
+deployable path uses a mock-first MCP/governance backend, an AgentKit
+orchestrator Runtime, and a separate read-only A2A checker Runtime. The MCP
+backend reads checked-in synthetic Feishu Base snapshots. Its SimplyBook
+adapter is mock by default; its reviewer endpoint is a local simulation; its
+Worker endpoint always returns `MOCK_ONLY_NOT_SENT`. The repository does not
+connect to employee SSO, live Feishu Base, native Feishu Approval, SimplyBook
+write APIs, or Impact Key. See [Deployment](DEPLOYMENT.md) and
+[Demo coverage](DEMO_COVERAGE.md) for the exact status.
+
 ## System roles
 
 | Component | Role in this demo | Credentials / authority |

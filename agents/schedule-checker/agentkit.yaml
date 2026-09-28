@@ -22,10 +22,12 @@ launch_types:
     cp_pipeline_name: Auto
     project_name: default
     runtime_id: Auto
-    runtime_name: Auto
+    runtime_name: ems-iw-demo-schedule-checker
     runtime_role_name: Auto
     runtime_auth_type: key_auth
     runtime_apikey_name: Auto
     runtime_apikey: Auto
     runtime_jwt_allowed_clients: []
+    runtime_envs:
+      EMS_SCHEDULE_CHECKER_PUBLIC_URL: ${EMS_SCHEDULE_CHECKER_PUBLIC_URL:-https://localhost.invalid}
 docker_build: {}

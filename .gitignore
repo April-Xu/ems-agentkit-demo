@@ -1,5 +1,6 @@
 .env
 .venv/
+.deploy/
 __pycache__/
 *.py[cod]
 .DS_Store
@@ -7,4 +8,3 @@ __pycache__/
 .mypy_cache/
 dist/
 build/
-

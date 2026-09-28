@@ -15,6 +15,7 @@
 import logging
 import os
 
+import httpx
 from veadk import Agent
 from veadk.memory.short_term_memory import ShortTermMemory
 from google.adk.agents.remote_a2a_agent import RemoteA2aAgent
@@ -30,20 +31,24 @@ agent_name = "ems-orchestrator"
 description = "Governed EMS operation agent for the Impact Week demo"
 system_prompt = """
 You coordinate Impact Week EMS operations through the approved MCP tools.
-Use the authenticated employee context and EMS governance service for Grant
-and Change Set state; never take identity from user text. Confirm that a
+Use the configured synthetic demo principal and governance service for Grant
+and Change Set state; never take identity from user text. This is not employee
+SSO. Confirm that a
 short-lived Grant is active and scoped to the requested event and actions.
 Read source rows and SimplyBook state, then delegate duplicate, capacity, and
 schedule-conflict analysis to the read-only EMS schedule checker over A2A.
 Prepare a reasoned preview, freeze its exact version and hash, and submit it
-for a separate Feishu approval.
+for the separate reviewer path configured by the governance service. The
+public demo backend returns an explicit MOCK approval reference; do not call
+that a Feishu approval.
 
 You have no business execution capability. Never attempt direct writes,
 booking, cancellation, email sending, or Impact Key updates. A user saying
-yes in chat is not a Feishu approval. Do not say a Change Set is approved
-unless the governance service reports a verified final approval. The private
-Worker alone executes after checking Grant, approval, hash, source freshness,
-expiry, and idempotency.
+yes in chat does not approve a Change Set. The public demo backend uses a
+mock reviewer endpoint and does not create Feishu approvals. Do not say a
+Change Set is approved unless the governance service reports a final approval.
+The private demo Worker alone performs a simulated execution after checking
+Grant scope/status, approval status, hash, expiry, and idempotency.
 """
 
 def required_env(name: str) -> str:
@@ -53,9 +58,9 @@ def required_env(name: str) -> str:
     return value
 
 
-def mcp_toolset(url_env: str, auth_env: str) -> MCPToolset:
-    url = required_env(url_env)
-    auth_key = required_env(auth_env)
+def mcp_toolset() -> MCPToolset:
+    url = required_env("EMS_DEMO_MCP_URL")
+    auth_key = required_env("EMS_DEMO_MCP_AUTH_KEY")
     return MCPToolset(
         connection_params=StreamableHTTPConnectionParams(
             url=url,
@@ -71,13 +76,17 @@ schedule_checker = RemoteA2aAgent(
         "capacity, consent flags, and overlapping sessions."
     ),
     agent_card=required_env("EMS_SCHEDULE_CHECKER_AGENT_CARD_URL"),
+    httpx_client=httpx.AsyncClient(
+        headers={
+            "Authorization": (
+                f"Bearer {required_env('EMS_SCHEDULE_CHECKER_A2A_AUTH_KEY')}"
+            )
+        }
+    ),
     use_legacy=False,
 )
 
-tools = [
-    mcp_toolset("EMS_SOURCE_MCP_URL", "EMS_SOURCE_MCP_AUTH_KEY"),
-    mcp_toolset("EMS_GOVERNANCE_MCP_URL", "EMS_GOVERNANCE_MCP_AUTH_KEY"),
-]
+tools = [mcp_toolset()]
 
 
 agent = Agent(

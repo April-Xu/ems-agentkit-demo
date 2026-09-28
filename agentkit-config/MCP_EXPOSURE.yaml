@@ -1,111 +1,87 @@
-version: 1
+version: 2
 purpose: >
-  Human-reviewed exposure plan for AgentKit MCP Gateway setup. This is not a
-  directly importable AgentKit configuration file.
+  Public demo MCP allowlist and the intended production service split. The
+  public demo backend is implemented in services/ems-governance/server.py;
+  cloud resources still need to be created by following docs/DEPLOYMENT.md.
 
-services:
+demo_service:
+  name: ems-impact-week-demo
+  backend: services/ems-governance/
+  transport: streamable-http
+  endpoint_path: /mcp
+  input_data: repository snapshot under ../data/feishu/
+  simplybook_mode_default: mock
+  tools_visible_to_orchestrator:
+    - list_events
+    - list_sessions
+    - list_participants
+    - list_enrollment_requests
+    - simplybook_list_calendars
+    - simplybook_list_bookings
+    - request_temporary_grant
+    - get_grant
+    - prepare_change_set
+    - get_change_set
+    - freeze_change_set
+    - submit_change_set_approval
+  tools_never_visible_to_agent:
+    - direct booking or cancellation
+    - email sending
+    - Impact Key update
+    - reviewer approval
+    - Worker execution
+  demo_only_routes:
+    reviewer:
+      - GET /demo/reviewer/queue
+      - POST /demo/reviewer/grants/{grantId}/approve
+      - POST /demo/reviewer/change-sets/{changeSetId}/approve
+    worker:
+      - POST /internal/change-sets/{changeSetId}/execute
+      - GET /internal/jobs/{jobId}
+    auth_env:
+      grant_reviewer: EMS_DEMO_GRANT_REVIEWER_KEY
+      changeset_reviewer: EMS_DEMO_CHANGESET_REVIEWER_KEY
+      worker: EMS_DEMO_WORKER_KEY
+    behavior: >
+      Worker validates Grant status/scope/expiry, approval status, frozen hash,
+      and idempotency, then records a simulated job. It never calls customer
+      write endpoints.
+
+future_live_service_split:
   feishu-base-read:
-    source: Feishu OpenAPI Base record-read operations
+    source: Feishu Base OpenAPI
     exposed_to:
       - orchestrator Agent
       - scheduled data-auditor Agent
-    permissions:
-      - read approved demo Base only
-    deny:
-      - create records
-      - update records
-      - delete records
-    notes:
-      - Use a dedicated application identity with Base read permission, or an explicitly approved user authorization flow.
-      - The interactive operator Grant and scheduled Agent machine identity are different principals.
+    permissions: [read approved demo Base only]
+    deny: [create records, update records, delete records]
+    note: The current demo reads committed JSON snapshots, not a live Base.
 
   simplybook-agent-read:
     source_openapi: ../contracts/SIMPLY_BOOK_OPENAPI.yaml
-    source_backend: SimplyBook EMS backend on Alibaba Cloud
-    authentication:
-      method: customer-approved service identity
-      headers: [Token, Appid, Lang, Platform]
-    exposed_to_agent:
-      include:
-        - GET /locations
-        - GET /locations/{locationId}
-        - GET /locations/{locationId}/timetable
-        - GET /practitioners
-        - GET /practitioners/{practitionerId}
-        - GET /calendars
-        - GET /calendars/{calendarId}
-        - GET /calendars/active-dates
-        - GET /calendars/search
-        - GET /calendars/{calendarId}/bookings
-      exclude:
-        - all direct booking, cancellation, credits, stock, and favorite writes
-        - every operation whose x-internal-route is null until route verification
-    notes:
-      - Keep reads paginated and bounded by event/date/session.
-      - Never place a SimplyBook JWT in Agent prompt or tool arguments.
-      - Tool descriptions should explain side effects; read service should have no write scope.
+    operations:
+      - GET /calendars
+      - GET /calendars/{calendarId}/bookings
+    auth_headers: [Token, Appid, Lang, Platform]
+    note: >
+      The code maps this read-only subset. Mock mode is default; live mode must
+      be validated against a customer-approved non-production endpoint.
 
   simplybook-worker-write:
-    source_openapi: ../contracts/SIMPLY_BOOK_OPENAPI.yaml
-    source_backend: SimplyBook EMS backend on Alibaba Cloud
-    authentication:
-      method: dedicated Worker workload identity and backend credential
-      headers: [Token, Appid, Lang, Platform]
-    exposed_to:
-      - private EMS Worker only
-    operations:
-      allow_after_route_and_semantics_validation:
-        - POST /calendars/{calendarId}/bookings
-        - POST /bookings/{bookingId}/cancel
-        - POST /credits/recharge
-      deny_until_customer_confirms_real_route:
-        - POST /credits/refund
-        - POST /calendars/{calendarId}/stock
-      never_expose_to:
-        - orchestrator Agent
-        - schedule-checker Agent
-    notes:
-      - This is an OpenAPI-to-MCP service, but its caller is the Worker, not the Agent.
-      - The Worker must verify approval, Grant, exact hash, source freshness, expiry, and idempotency before invoking it.
-      - The booking-count API cannot bind returned booking IDs to named participants; use a customer-confirmed endpoint or demo mock for named enrollment.
+    exposed_to: [private Worker only]
+    never_publish_to_agent_mcp: true
+    status: not implemented; customer write API semantics are unconfirmed
 
-  ems-governance-agent:
+  ems-governance-live:
     source_openapi: ../contracts/EMS_GOVERNANCE_AGENT_OPENAPI.yaml
-    exposed_to_agent:
-      include:
-        - requestTemporaryGrant
-        - listMyGrants
-        - getGrant
-        - prepareChangeSet
-        - getChangeSet
-        - freezeChangeSet
-        - submitChangeSetApproval
-      exclude:
-        - executeApprovedChangeSet
-        - Feishu approval callback
-    notes:
-      - Authenticated human subject is derived from a verified token or trusted identity broker, never from prompt text.
-      - Request Grant and Change Set submission only; neither operation executes a business write.
-      - The Agent MCP credential is not a replacement for the operator's EMS business Grant.
+    exposed_to: [orchestrator Agent]
+    operations: [request Grant, prepare/freeze Change Set, submit for approval]
+    status: demo implementation only; employee identity and Feishu approval are not connected
 
-worker_only:
-  source_openapi: ../contracts/EMS_WORKER_INTERNAL_OPENAPI.yaml
-  identity: dedicated worker workload identity
-  secret_mount: worker runtime only
-  operations:
-    - executeApprovedChangeSet
-    - getWorkerJob
-    - demoImpactKeyProjection
-    - private SimplyBook write MCP service
-  never_publish_to_agent_mcp: true
+  impact-key-sync:
+    exposed_to: [private Worker only]
+    status: contract not supplied; demo projection only
 
-scheduled_audit_trigger:
-  owner: customer scheduler or approved Feishu Workflow
-  identity: dedicated read-only machine identity
-  actions:
-    - invoke ems-data-auditor
-    - write a review report only if a customer-approved destination is supplied
-  must_not:
-    - edit or delete source rows
-    - send mail
-    - enroll or remove participants
+  scheduled_audit_trigger:
+    owner: customer scheduler or approved Feishu Workflow
+    status: not configured

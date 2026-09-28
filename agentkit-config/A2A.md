@@ -12,21 +12,14 @@ personal data. Do not expose an unauthenticated checker to a public network.
 
 ## Cloud demo
 
-Choose one of these patterns with the customer:
-
-1. Register the checker and orchestrator in an AgentKit A2A Registry space and
-   use Registry-managed machine-to-machine authentication.
-2. Use a fixed Agent Card URL behind an approved gateway that authenticates
-   the calling workload.
+The current orchestrator uses the fixed Agent Card URL in
+`EMS_SCHEDULE_CHECKER_AGENT_CARD_URL` and sends the separate schedule-checker
+Runtime API Key from `EMS_SCHEDULE_CHECKER_A2A_AUTH_KEY` as a Bearer credential.
+The Runtime must require key authentication, and these values must be filled
+after deploying the checker. The public demo uses synthetic data only.
 
 The checker must use a dedicated service identity. It receives only the
 minimum data needed for schedule validation. Never forward the employee's
 bearer token to the checker, and never treat its findings as a Grant or
-approval.
-
-The current orchestrator scaffold uses a fixed Agent Card URL for the direct
-A2A sub-agent connection. Registry discovery and cloud M2M credentials remain
-deployment wiring to be selected and verified. AgentKit Harness documents
-Registry-based Agent discovery and OAuth client-credentials for remote agents:
-https://volcengine.github.io/agentkit-sdk-python/content/2.agentkit-cli/5.harness.html
-
+approval. A production deployment should replace the fixed demo key with the
+customer's approved service identity / registry pattern and rotate the key.
