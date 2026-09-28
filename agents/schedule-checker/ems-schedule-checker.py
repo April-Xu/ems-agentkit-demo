@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 a2a_app = AgentkitA2aApp()
 
-agent_name = "ems-schedule-checker"
+agent_name = "ems_schedule_checker"
 description = "Read-only duplicate, capacity, and schedule conflict checker for EMS demo"
 system_prompt = """
 You are a read-only EMS schedule and data quality specialist. Analyze only
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         "EMS_SCHEDULE_CHECKER_PUBLIC_URL",
         "http://localhost:8001",
     )
-    port = int(os.getenv("PORT", "8001"))
+    port = int(os.getenv("PORT", "8000"))
     from a2a.types import AgentCard, AgentProvider, AgentSkill, AgentCapabilities
     
     agent_card = AgentCard(

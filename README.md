@@ -6,7 +6,7 @@ This repository contains a deployable **synthetic demo path**. The MCP service r
 
 ## Start here
 
-1. Follow [Deployment](docs/DEPLOYMENT.md) to run the mock MCP backend and deploy the AgentKit Runtimes.
+1. Follow [Deployment](docs/DEPLOYMENT.md) to cloud-build the MCP image, create the AgentKit MCP Gateway, configure its Host allowlist, and deploy the AgentKit Runtimes.
 2. Review the [architecture](docs/ARCHITECTURE.md), [demo runbook](docs/DEMO_RUNBOOK.md), [coverage matrix](docs/DEMO_COVERAGE.md), and [assumptions](docs/ASSUMPTIONS_AND_QUESTIONS.md).
 3. Open the [synthetic Feishu Base](https://bytedance.larkoffice.com/base/EqKybzfN6apgq2sPztVckxZMnth) and review the customer-provided contracts under `contracts/`.
 
@@ -32,7 +32,7 @@ This repository contains a deployable **synthetic demo path**. The MCP service r
 | Path | Purpose |
 |---|---|
 | `docs/DEPLOYMENT.md` | Step-by-step local and cloud deployment guide |
-| `scripts/` | Start the mock MCP server, build/push its image, and launch AgentKit Runtimes |
+| `scripts/` | Start the mock MCP server, build/push its image through AgentKit Build, verify MCP tools, and launch AgentKit Runtimes |
 | `services/ems-governance/` | Streamable HTTP MCP backend, demo governance state, local reviewer/Worker routes, and Docker image |
 | `agents/orchestrator/` | AgentKit/VeADK orchestrator; connects to the demo MCP service and read-only A2A checker |
 | `agents/schedule-checker/` | Standalone read-only AgentKit A2A Agent |
@@ -47,4 +47,4 @@ This repository contains a deployable **synthetic demo path**. The MCP service r
 
 ## Cloud deployment status
 
-No cloud Runtime, MCP Gateway, Feishu approval definition, live SimplyBook endpoint, email sender, or Impact Key API has been provisioned. The deployment guide documents the exact steps and resource names. Creating cloud resources requires an authenticated AgentKit CLI account; the local task session is not logged in.
+The public repository does not contain cloud credentials or endpoint API keys. Each customer can deploy an isolated copy into their own AgentKit project by following [the deployment guide](docs/DEPLOYMENT.md). The guide's cloud build path uses AgentKit Build, so Docker is optional. The current example remains synthetic: Feishu snapshots are not live-linked and execution does not call SimplyBook or Impact Key.

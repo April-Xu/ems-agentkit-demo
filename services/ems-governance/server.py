@@ -19,6 +19,7 @@ from typing import Any
 import httpx
 import uvicorn
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.requests import Request
@@ -37,7 +38,33 @@ MAX_GRANT_MINUTES = 15
 MAX_BATCH_SIZE = 3
 DEMO_EVENT_ID = "DEMO-IW-2026-001"
 
-mcp = FastMCP("ems-impact-week-demo")
+
+def transport_security() -> TransportSecuritySettings | None:
+    """Keep DNS-rebinding protection enabled for the public MCP gateway."""
+    allowed_hosts = [
+        host.strip()
+        for host in os.getenv("EMS_MCP_ALLOWED_HOSTS", "").split(",")
+        if host.strip()
+    ]
+    allowed_origins = [
+        origin.strip()
+        for origin in os.getenv("EMS_MCP_ALLOWED_ORIGINS", "").split(",")
+        if origin.strip()
+    ]
+    if not allowed_hosts and not allowed_origins:
+        # Preserve FastMCP's localhost defaults for local development.
+        return None
+    return TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=allowed_hosts,
+        allowed_origins=allowed_origins,
+    )
+
+
+mcp = FastMCP(
+    "ems-impact-week-demo",
+    transport_security=transport_security(),
+)
 
 
 def now() -> datetime:

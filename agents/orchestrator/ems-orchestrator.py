@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-agent_name = "ems-orchestrator"
+agent_name = "ems_orchestrator"
 description = "Governed EMS operation agent for the Impact Week demo"
 system_prompt = """
 You coordinate Impact Week EMS operations through the approved MCP tools.
@@ -70,7 +70,7 @@ def mcp_toolset() -> MCPToolset:
 
 
 schedule_checker = RemoteA2aAgent(
-    name="ems-schedule-checker",
+    name="ems_schedule_checker",
     description=(
         "Read-only checker for exact duplicate emails, existing enrollments, "
         "capacity, consent flags, and overlapping sessions."
