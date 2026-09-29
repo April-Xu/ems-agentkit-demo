@@ -31,7 +31,12 @@ from mcp.client.streamable_http import streamablehttp_client
 
 async def main():
     headers = {"Authorization": f"Bearer {os.environ['EMS_DEMO_MCP_AUTH_KEY']}"}
-    async with streamablehttp_client(os.environ["EMS_DEMO_MCP_URL"], headers=headers) as (read, write, _):
+    async with streamablehttp_client(
+        os.environ["EMS_DEMO_MCP_URL"],
+        headers=headers,
+        timeout=90,
+        sse_read_timeout=90,
+    ) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
             result = await session.list_tools()
@@ -40,5 +45,11 @@ async def main():
                 raise SystemExit("MCP endpoint connected but returned no tools")
             print("MCP tools ({}): {}".format(len(names), ", ".join(names)))
 
-asyncio.run(main())
+try:
+    asyncio.run(main())
+except BaseException as error:
+    while isinstance(error, BaseExceptionGroup) and error.exceptions:
+        error = error.exceptions[0]
+    print(f"MCP connection failed ({type(error).__name__}). Check gateway reachability and .env endpoint/key settings.")
+    raise SystemExit(1)
 PY

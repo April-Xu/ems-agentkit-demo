@@ -92,14 +92,16 @@ import sys
 path = Path(sys.argv[1])
 agent_name = sys.argv[2]
 keys = (
-    ("EMS_SCHEDULE_CHECKER_PUBLIC_URL",)
-    if agent_name == "schedule-checker"
-    else (
-        "EMS_DEMO_MCP_URL",
-        "EMS_DEMO_MCP_AUTH_KEY",
-        "EMS_SCHEDULE_CHECKER_AGENT_CARD_URL",
-        "EMS_SCHEDULE_CHECKER_A2A_AUTH_KEY",
-    )
+    "MODEL_AGENT_NAME",
+    "MODEL_ENDPOINT",
+    "EMS_SCHEDULE_CHECKER_PUBLIC_URL",
+) if agent_name == "schedule-checker" else (
+    "MODEL_AGENT_NAME",
+    "MODEL_ENDPOINT",
+    "EMS_DEMO_MCP_URL",
+    "EMS_DEMO_MCP_AUTH_KEY",
+    "EMS_SCHEDULE_CHECKER_AGENT_CARD_URL",
+    "EMS_SCHEDULE_CHECKER_A2A_AUTH_KEY",
 )
 text = path.read_text(encoding="utf-8")
 for key in keys:

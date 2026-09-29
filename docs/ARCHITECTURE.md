@@ -12,6 +12,11 @@ connect to employee SSO, live Feishu Base, native Feishu Approval, SimplyBook
 write APIs, or Impact Key. See [Deployment](DEPLOYMENT.md) and
 [Demo coverage](DEMO_COVERAGE.md) for the exact status.
 
+The public AgentKit MCP Gateway routes only `/mcp`. Reviewer and Worker HTTP
+routes are not reachable there and use separate local SQLite state. The hosted
+orchestrator stops at a pending Grant; direct A2A checker invocation is an
+independent demonstration until a cloud Reviewer path and shared state exist.
+
 ## System roles
 
 | Component | Role in this demo | Credentials / authority |

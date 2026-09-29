@@ -29,6 +29,8 @@ launch_types:
     runtime_apikey: Auto
     runtime_jwt_allowed_clients: []
     runtime_envs:
+      MODEL_AGENT_NAME: doubao-seed-2-1-pro-260628
+      MODEL_ENDPOINT: https://ark.cn-beijing.volces.com/api/v3
       EMS_DEMO_MCP_URL: ${EMS_DEMO_MCP_URL:?Create the demo MCP service first}
       EMS_DEMO_MCP_AUTH_KEY: ${EMS_DEMO_MCP_AUTH_KEY:?Set the MCP inbound API key in .env}
       EMS_SCHEDULE_CHECKER_AGENT_CARD_URL: ${EMS_SCHEDULE_CHECKER_AGENT_CARD_URL:?Deploy the schedule checker first}
