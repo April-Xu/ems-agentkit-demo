@@ -29,7 +29,7 @@
 
 复现依赖“账号确实没有所选模型权限”。若测试账号有权限，该现象不会复现。
 
-![Runtime Ready 但模型调用失败的脱敏复现记录](evidence/agentkit/runtime-ready-model-call-failure.png)
+![Runtime Ready 但模型调用失败的脱敏复现记录](evidence/agentkit/runtime-ready-model-call-failure.svg)
 
 图为根据 2026-09-29 已观察到的 CLI 输出整理的脱敏证据图，不是原始控制台截图；现有会话过期后未重新抓取云端画面。
 
