@@ -7,7 +7,7 @@ This repository contains a deployable **synthetic demo path**. The MCP service r
 ## Start here
 
 1. Follow [Deployment](docs/DEPLOYMENT.md) to cloud-build the MCP image, create the AgentKit MCP Gateway, configure its Host allowlist, and deploy the AgentKit Runtimes.
-2. Review the [architecture](docs/ARCHITECTURE.md), [demo runbook](docs/DEMO_RUNBOOK.md), [coverage matrix](docs/DEMO_COVERAGE.md), and [assumptions](docs/ASSUMPTIONS_AND_QUESTIONS.md).
+2. Review the [architecture](docs/ARCHITECTURE.md), [demo runbook](docs/DEMO_RUNBOOK.md), [coverage matrix](docs/DEMO_COVERAGE.md), [assumptions](docs/ASSUMPTIONS_AND_QUESTIONS.md), and [AgentKit product triage with reproduction evidence](docs/AGENTKIT_PRODUCT_TRIAGE.md).
 3. Open the [synthetic Feishu Base](https://bytedance.larkoffice.com/base/EqKybzfN6apgq2sPztVckxZMnth) and review the customer-provided contracts under `contracts/`.
 
 ## What the demo proves
